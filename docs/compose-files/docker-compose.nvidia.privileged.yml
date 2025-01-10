@@ -26,9 +26,11 @@ services:
               device_ids: ["${NVIDIA_VISIBLE_DEVICES}"]
 
     # NETWORK:
-    ## NOTE:  With this configuration, if we do not use the host network, then physical device input
-    ##        is not possible and your USB connected controllers will not work in steam games.
-    network_mode: host
+    ## NOTE:  In this configuration, the host is not intended to be connected to
+    ## directly, e.g. with a display or controllers. The primary purpose is streaming with SteamLink. 
+    networks:
+      steam:
+        ipv4_address: ${IP_ADDRESS}
     hostname: ${NAME}
     extra_hosts:
       - "${NAME}:127.0.0.1"
@@ -85,3 +87,30 @@ services:
 
       # Input devices used for mouse and joypad support inside the container.
       - /dev/input/:/dev/input/:ro
+
+  # NETWORK
+  # If you use normal Docker networking, Steam will think that your client is on
+  # a different network from this host. If it thinks that, it will route all of
+  # your traffic through Valve servers and significantly degrade the streaming quality.
+  # In order to give the container an IP on the local network, we use the Docker
+  # macvlan network driver, which gives your container its own MAC address and IP on the
+  # physical network.
+  # There are downsides to doing this with a large number kf decices (see the docs), but
+  # for this it should work great.
+  # You need to provide a physical network interface on your Docker host (like eth0 for ethernet)
+  # to use for the Macvlan, as well as the subnet range and gateway IP of the network
+  # (this is the range of IP addreeses in CIDR format and the router's IP). 
+  #
+  # Ref: https://docs.docker.com/engine/network/drivers/macvlan/
+  networks:
+    steam:
+      driver: macvlan
+      driver_opts:
+        # Network interface to use
+        parent: ${NETWORK_INTERFACE}
+      ipam:
+        config:
+            # The LAN subnet (i.e. the subnet the host uses)
+          - subnet: ${LAN_SUBNET_CIDR}
+            # The IP of the LAN gatway (i.e. the router's IP)
+            gateway: ${LAN_GATEWAY}
